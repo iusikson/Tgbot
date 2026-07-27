@@ -5,11 +5,12 @@ from yt_dlp import YoutubeDL
 from threading import Thread
 from flask import Flask
 
+# 1. Фоновий сервер Flask для хостингу Render
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Бот працює!"
+    return "Бот працює стабільно!"
 
 def run():
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
@@ -18,69 +19,79 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-BOT_TOKEN = "ВАШ_ТОКЕН_БОТА"  # Замініть на свій токен
+# 2. Ініціалізація бота (ВСТАВ СВІЙ ТОКЕН НИЖЧЕ)
+BOT_TOKEN = "ВАШ_ТОКЕН_БОТА" 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# ОБРОБКА В ЧАТІ З ЛЮДИНОЮ (INLINE MODE)
-@bot.inline_handler(func=lambda query: len(query.query) > 0)
-def query_text(inline_query):
-    url = inline_query.query
-
-    if "tiktok.com" not in url:
-        return
-
-    ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
-        'quiet': True,
-    }
-
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False) # Не качаємо на диск, беремо відразу пряме посилання
-            video_url = info.get('url')
-            thumb_url = info.get('thumbnail')
-
-        # Формуємо результат, який побачить користувач у чаті
-        video_result = types.InlineQueryResultVideo(
-            id='1',
-            video_url=video_url,
-            mime_type="video/mp4",
-            thumbnail_url=thumb_url,
-            title="Завантажити відео з TikTok"
-        )
-
-        bot.answer_inline_query(inline_query.id, [video_result], cache_time=1)
-    except Exception as e:
-        print(f"Inline помилка: {e}")
-
-# ОБРОБКА В ОСОБИСТИХ ПОВІДОМЛЕННЯХ З БОТОМ (ЯК БУЛО)
+# 3. Стартова команда
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "Привіт! Надішли мені посилання на TikTok в особисті, або просто згадай мене в будь-якому іншому чаті!")
+    bot.reply_to(
+        message, 
+        "Привіт! Надішли мені посилання на відео з TikTok. "
+        "Я завантажу його без водяного знаку і додам кнопку для зручного пересилання другу! 🚀"
+    )
 
+# 4. Головна логіка завантаження відео
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     url = message.text
+
     if "tiktok.com" not in url:
         bot.reply_to(message, "Будь ласка, надішли коректне посилання на TikTok.")
         return
 
-    status_msg = bot.reply_to(message, "⏳ Завантажую відео...")
-    ydl_opts = {'format': 'bestvideo+bestaudio/best', 'outtmpl': 'downloads/%(id)s.%(ext)s', 'quiet': True}
+    status_msg = bot.reply_to(message, "⏳ Обхожу захист TikTok та завантажую відео, зачекай трохи...")
+
+    # Оновлені легкі налаштування завантажувача для обходу блокувань IP
+    ydl_opts = {
+        'format': 'worst',  # Мобільний легкий формат, який TikTok віддає без перевірок
+        'outtmpl': '%(id)s.%(ext)s',
+        'quiet': True,
+        'extractor_args': {
+            'tiktok': {
+                'webpage_skip': ['player_response']  # Пропускаємо перевірки скриптів TikTok
+            }
+        }
+    }
 
     try:
-        if not os.path.exists("downloads"): os.makedirs("downloads")
+        # Скачуємо mp4-файл у корінь сервера
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
+        # Створюємо кнопку "Поділитися"
+        markup = types.InlineKeyboardMarkup()
+        share_button = types.InlineKeyboardButton(
+            text="Поділитися з другом ↩️",
+            url=f"https://t.me{url}&text=Переглянь%20це%20відео%20з%20TikTok!"
+        )
+        markup.add(share_button)
+
+        # Надсилаємо файл користувачу
         with open(filename, 'rb') as video:
-            bot.send_video(message.chat.id, video, reply_to_message_id=message.message_id)
-        os.remove(filename)
+            bot.send_video(
+                message.chat.id, 
+                video, 
+                reply_markup=markup, 
+                reply_to_message_id=message.message_id
+            )
+
+        # Видаляємо тимчасовий файл із сервера
+        if os.path.exists(filename):
+            os.remove(filename)
         bot.delete_message(message.chat.id, status_msg.message_id)
+
     except Exception as e:
-        bot.edit_message_text("❌ Помилка завантаження.", message.chat.id, status_msg.message_id)
+        bot.edit_message_text(
+            "❌ Не вдалося завантажити відео. Сервер заблоковано. Спробуйте пізніше або інше посилання.", 
+            message.chat.id, 
+            status_msg.message_id
+        )
+        print(f"Помилка завантаження: {e}")
 
 if __name__ == '__main__':
+    print("Бот успішно запускається...")
     keep_alive()
     bot.infinity_polling()
