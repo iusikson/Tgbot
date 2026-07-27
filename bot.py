@@ -5,7 +5,7 @@ from yt_dlp import YoutubeDL
 from threading import Thread
 from flask import Flask
 
-# 1. Фоновий сервер Flask для Render
+# 1. Фоновий сервер Flask для хостингу Render
 app = Flask('')
 
 @app.route('/')
@@ -19,8 +19,8 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# 2. Ініціалізація бота (ВСТАВТЕ СВІЙ ТОКЕН ТУТ)
-BOT_TOKEN = "8600085658:AAFxYgvTDaQ9ZZzPogxJxaLB-PbEuYzk5PI" 
+# 2. Ініціалізація бота (ВСТАВ СВІЙ ТОКЕН НИЖЧЕ)
+BOT_TOKEN = "ВАШ_ТОКЕН_БОТА" 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # 3. Стартова команда
@@ -28,11 +28,11 @@ bot = telebot.TeleBot(BOT_TOKEN)
 def send_welcome(message):
     bot.reply_to(
         message, 
-        "Привіт! Надішли мені посилання на відео з TikTok в особисті повідомлення. "
+        "Привіт! Надішли мені посилання на відео з TikTok. "
         "Я завантажу його без водяного знаку і додам кнопку для зручного пересилання другу! 🚀"
     )
 
-# 4. Логіка завантаження та кнопки пересилання
+# 4. Головна логіка завантаження відео
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     url = message.text
@@ -41,8 +41,9 @@ def handle_message(message):
         bot.reply_to(message, "Будь ласка, надішли коректне посилання на TikTok.")
         return
 
-    status_msg = bot.reply_to(message, "⏳ Завантажую відео без водяного знаку, зачекай twilight...")
+    status_msg = bot.reply_to(message, "⏳ Завантажую відео без водяного знаку, зачекай трохи...")
 
+    # Налаштування завантажувача
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
         'outtmpl': '%(id)s.%(ext)s',
@@ -50,20 +51,20 @@ def handle_message(message):
     }
 
     try:
-        # Завантажуємо відео безпосередньо у корінь сервера
+        # Скачуємо чистий mp4-файл у корінь сервера
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        # Створюємо кнопку швидкого пересилання повідомлення (репосту)
+        # Створюємо просту та безвідмовну кнопку "Поділитися"
         markup = types.InlineKeyboardMarkup()
         share_button = types.InlineKeyboardButton(
             text="Поділитися з другом ↩️",
-            url="https://t.me!"
+            url=f"https://t.me{url}&text=Переглянь%20це%20відео%20з%20TikTok!"
         )
         markup.add(share_button)
 
-        # Надсилаємо файл користувачу
+        # Надсилаємо скачаний файл користувачу
         with open(filename, 'rb') as video:
             bot.send_video(
                 message.chat.id, 
@@ -72,8 +73,9 @@ def handle_message(message):
                 reply_to_message_id=message.message_id
             )
 
-        # Чистимо за собою диск
-        os.remove(filename)
+        # Видаляємо тимчасове сміття з сервера, щоб Render не лаявся
+        if os.path.exists(filename):
+            os.remove(filename)
         bot.delete_message(message.chat.id, status_msg.message_id)
 
     except Exception as e:
