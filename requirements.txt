@@ -1,4 +1,4 @@
 pyTelegramBotAPI
 yt-dlp
 flask
-curl_cffi
+
