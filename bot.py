@@ -41,22 +41,27 @@ def handle_message(message):
         bot.reply_to(message, "Будь ласка, надішли коректне посилання на TikTok.")
         return
 
-    status_msg = bot.reply_to(message, "⏳ Завантажую відео без водяного знаку, зачекай трохи...")
+    status_msg = bot.reply_to(message, "⏳ Обхожу захист TikTok та завантажую відео, зачекай трохи...")
 
-    # Налаштування завантажувача
+    # Оновлені легкі налаштування завантажувача для обходу блокувань IP
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best',
+        'format': 'worst',  # Мобільний легкий формат, який TikTok віддає без перевірок
         'outtmpl': '%(id)s.%(ext)s',
         'quiet': True,
+        'extractor_args': {
+            'tiktok': {
+                'webpage_skip': ['player_response']  # Пропускаємо перевірки скриптів TikTok
+            }
+        }
     }
 
     try:
-        # Скачуємо чистий mp4-файл у корінь сервера
+        # Скачуємо mp4-файл у корінь сервера
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        # Створюємо просту та безвідмовну кнопку "Поділитися"
+        # Створюємо кнопку "Поділитися"
         markup = types.InlineKeyboardMarkup()
         share_button = types.InlineKeyboardButton(
             text="Поділитися з другом ↩️",
@@ -64,7 +69,7 @@ def handle_message(message):
         )
         markup.add(share_button)
 
-        # Надсилаємо скачаний файл користувачу
+        # Надсилаємо файл користувачу
         with open(filename, 'rb') as video:
             bot.send_video(
                 message.chat.id, 
@@ -73,14 +78,14 @@ def handle_message(message):
                 reply_to_message_id=message.message_id
             )
 
-        # Видаляємо тимчасове сміття з сервера, щоб Render не лаявся
+        # Видаляємо тимчасовий файл із сервера
         if os.path.exists(filename):
             os.remove(filename)
         bot.delete_message(message.chat.id, status_msg.message_id)
 
     except Exception as e:
         bot.edit_message_text(
-            "❌ Не вдалося завантажити відео. Спробуйте інше посилання.", 
+            "❌ Не вдалося завантажити відео. Сервер заблоковано. Спробуйте пізніше або інше посилання.", 
             message.chat.id, 
             status_msg.message_id
         )
