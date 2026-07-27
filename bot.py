@@ -1,10 +1,10 @@
 import os
 import telebot
+from telebot import types
 from yt_dlp import YoutubeDL
 from threading import Thread
 from flask import Flask
 
-# Створюємо веб-сервер для обходу сну Render
 app = Flask('')
 
 @app.route('/')
@@ -18,51 +18,69 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# Ініціалізація бота
-BOT_TOKEN = "8600085658:AAFxYgvTDaQ9ZZzPogxJxaLB-PbEuYzk5PI"
+BOT_TOKEN = "8600085658:AAFxYgvTDaQ9ZZzPogxJxaLB-PbEuYzk5PI"  # Замініть на свій токен
 bot = telebot.TeleBot(BOT_TOKEN)
 
-DOWNLOAD_DIR = "downloads"
-if not os.path.exists(DOWNLOAD_DIR):
-    os.makedirs(DOWNLOAD_DIR)
-
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    bot.reply_to(message, "Привіт! Надішли мені посилання на відео з TikTok, і я завантажу його для тебе.")
-
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    url = message.text
+# ОБРОБКА В ЧАТІ З ЛЮДИНОЮ (INLINE MODE)
+@bot.inline_handler(func=lambda query: len(query.query) > 0)
+def query_text(inline_query):
+    url = inline_query.query
 
     if "tiktok.com" not in url:
-        bot.reply_to(message, "Будь ласка, надішли коректне посилання на TikTok.")
         return
-
-    status_msg = bot.reply_to(message, "⏳ Завантажую відео, зачекай трохи...")
 
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
-        'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
         'quiet': True,
     }
 
     try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False) # Не качаємо на диск, беремо відразу пряме посилання
+            video_url = info.get('url')
+            thumb_url = info.get('thumbnail')
+
+        # Формуємо результат, який побачить користувач у чаті
+        video_result = types.InlineQueryResultVideo(
+            id='1',
+            video_url=video_url,
+            mime_type="video/mp4",
+            thumbnail_url=thumb_url,
+            title="Завантажити відео з TikTok"
+        )
+
+        bot.answer_inline_query(inline_query.id, [video_result], cache_time=1)
+    except Exception as e:
+        print(f"Inline помилка: {e}")
+
+# ОБРОБКА В ОСОБИСТИХ ПОВІДОМЛЕННЯХ З БОТОМ (ЯК БУЛО)
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "Привіт! Надішли мені посилання на TikTok в особисті, або просто згадай мене в будь-якому іншому чаті!")
+
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    url = message.text
+    if "tiktok.com" not in url:
+        bot.reply_to(message, "Будь ласка, надішли коректне посилання на TikTok.")
+        return
+
+    status_msg = bot.reply_to(message, "⏳ Завантажую відео...")
+    ydl_opts = {'format': 'bestvideo+bestaudio/best', 'outtmpl': 'downloads/%(id)s.%(ext)s', 'quiet': True}
+
+    try:
+        if not os.path.exists("downloads"): os.makedirs("downloads")
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
         with open(filename, 'rb') as video:
             bot.send_video(message.chat.id, video, reply_to_message_id=message.message_id)
-
         os.remove(filename)
         bot.delete_message(message.chat.id, status_msg.message_id)
-
     except Exception as e:
-        bot.edit_message_text("❌ Не вдалося завантажити відео.", message.chat.id, status_msg.message_id)
-        print(f"Помилка: {e}")
+        bot.edit_message_text("❌ Помилка завантаження.", message.chat.id, status_msg.message_id)
 
-# Запуск бота разом із веб-сервером
 if __name__ == '__main__':
-    print("Бот успішно запущений...")
-    keep_alive()  # Запуск фонового веб-сервера
+    keep_alive()
     bot.infinity_polling()
