@@ -20,7 +20,7 @@ def keep_alive():
     t.start()
 
 # 2. Ініціалізація бота (ВСТАВ СВІЙ ТОКЕН НИЖЧЕ)
-BOT_TOKEN = "ВАШ_ТОКЕН_БОТА" 
+BOT_TOKEN = "8600085658:AAFxYgvTDaQ9ZZzPogxJxaLB-PbEuYzk5PI" 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # 3. Стартова команда
