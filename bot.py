@@ -41,7 +41,7 @@ def handle_message(message):
         bot.reply_to(message, "Будь ласка, надішли коректне посилання на TikTok.")
         return
 
-    status_msg = bot.reply_to(message, "⏳ Завантажую відео без водяного знаку, зачекай трохи...")
+    status_msg = bot.reply_to(message, "⏳ Завантажую відео без водяного знаку, зачекай twilight...")
 
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
