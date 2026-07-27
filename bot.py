@@ -5,7 +5,6 @@ from yt_dlp import YoutubeDL
 from threading import Thread
 from flask import Flask
 
-# 1. Фоновий сервер Flask для хостингу Render
 app = Flask('')
 
 @app.route('/')
@@ -19,20 +18,14 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# 2. Ініціалізація бота (ВСТАВ СВІЙ ТОКЕН НИЖЧЕ)
-BOT_TOKEN = "ВАШ_ТОКЕН_БОТА" 
+# Ініціалізація бота
+BOT_TOKEN = "8600085658:AAHrPZ-GeclqqsXw-7b3GNVd0ul9frwN2so"  # <--- ВСТАВ НОВИЙ ТОКЕН ВІД BOTFATHER
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# 3. Стартова команда
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(
-        message, 
-        "Привіт! Надішли мені посилання на відео з TikTok. "
-        "Я завантажу його без водяного знаку і додам кнопку для зручного пересилання другу! 🚀"
-    )
+    bot.reply_to(message, "Привіт! Надішли мені посилання на TikTok, і я завантажу відео без водяного знаку! 🚀")
 
-# 4. Головна логіка завантаження відео
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     url = message.text
@@ -41,27 +34,21 @@ def handle_message(message):
         bot.reply_to(message, "Будь ласка, надішли коректне посилання на TikTok.")
         return
 
-    status_msg = bot.reply_to(message, "⏳ Обхожу захист TikTok та завантажую відео, зачекай трохи...")
+    status_msg = bot.reply_to(message, "⏳ Обходжу захист TikTok та завантажую відео...")
 
-    # Оновлені легкі налаштування завантажувача для обходу блокувань IP
     ydl_opts = {
-        'format': 'worst',  # Мобільний легкий формат, який TikTok віддає без перевірок
+        'format': 'worst',  # Стабільний мобільний формат для обходу бану IP хостингів
         'outtmpl': '%(id)s.%(ext)s',
         'quiet': True,
-        'extractor_args': {
-            'tiktok': {
-                'webpage_skip': ['player_response']  # Пропускаємо перевірки скриптів TikTok
-            }
-        }
+        'extractor_args': {'tiktok': {'webpage_skip': ['player_response']}}
     }
 
+    filename = None
     try:
-        # Скачуємо mp4-файл у корінь сервера
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        # Створюємо кнопку "Поділитися"
         markup = types.InlineKeyboardMarkup()
         share_button = types.InlineKeyboardButton(
             text="Поділитися з другом ↩️",
@@ -69,29 +56,23 @@ def handle_message(message):
         )
         markup.add(share_button)
 
-        # Надсилаємо файл користувачу
         with open(filename, 'rb') as video:
-            bot.send_video(
-                message.chat.id, 
-                video, 
-                reply_markup=markup, 
-                reply_to_message_id=message.message_id
-            )
+            bot.send_video(message.chat.id, video, reply_markup=markup, reply_to_message_id=message.message_id)
 
-        # Видаляємо тимчасовий файл із сервера
-        if os.path.exists(filename):
-            os.remove(filename)
         bot.delete_message(message.chat.id, status_msg.message_id)
 
     except Exception as e:
-        bot.edit_message_text(
-            "❌ Не вдалося завантажити відео. Сервер заблоковано. Спробуйте пізніше або інше посилання.", 
-            message.chat.id, 
-            status_msg.message_id
-        )
-        print(f"Помилка завантаження: {e}")
+        bot.edit_message_text("❌ Не вдалося завантажити це відео. TikTok заблокував запит.", message.chat.id, status_msg.message_id)
+        print(f"Помилка: {e}")
+    finally:
+        if filename and os.path.exists(filename):
+            os.remove(filename)
 
 if __name__ == '__main__':
     print("Бот успішно запускається...")
+    
+    # ПРИМУСОВО ВИДАЛЯЄМО ВСІ ЗАВИСЛІ ВЕБХУКИ ТА ЧЕРГИ ПЕРЕД СТАРТОМ
+    bot.delete_webhook(drop_pending_updates=True)
+    
     keep_alive()
     bot.infinity_polling()
