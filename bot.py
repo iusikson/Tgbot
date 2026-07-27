@@ -29,7 +29,7 @@ def send_welcome(message):
     bot.reply_to(
         message, 
         "Привіт! Надішли мені посилання на відео з TikTok в особисті повідомлення. "
-        "Я завантажу його без водяного знаку і додам кнопку для пересилання! 🚀"
+        "Я завантажу його без водяного знаку і додам кнопку для зручного пересилання другу! 🚀"
     )
 
 # 4. Логіка завантаження та кнопки пересилання
@@ -55,15 +55,11 @@ def handle_message(message):
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        # Створюємо кнопку "Поділитися"
+        # Створюємо кнопку швидкого пересилання повідомлення (репосту)
         markup = types.InlineKeyboardMarkup()
         share_button = types.InlineKeyboardButton(
             text="Поділитися з другом ↩️",
-            switch_inline_query_chosen_chat=types.SwitchInlineQueryChosenChat(
-                query="",
-                allow_user_chats=True,
-                allow_group_chats=True
-            )
+            url="https://t.me!"
         )
         markup.add(share_button)
 
