@@ -50,11 +50,12 @@ def handle_message(message):
     status_msg = bot.reply_to(message, "⏳ Завантажую відео без водяного знаку, зачекай трохи...")
 
     # Налаштування yt-dlp для скачування чистого файлу mp4
-    ydl_opts = {
+        ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
-        'outtmpl': f'{DOWNLOAD_DIR}/%(id)s.%(ext)s',
+        'outtmpl': '%(id)s.%(ext)s',  # Змінили тут (прибрали DOWNLOAD_DIR)
         'quiet': True,
     }
+
 
     try:
         # Завантажуємо відео на диск сервера
