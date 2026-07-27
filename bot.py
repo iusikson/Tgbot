@@ -5,7 +5,7 @@ from yt_dlp import YoutubeDL
 from threading import Thread
 from flask import Flask
 
-# 1. Створюємо веб-сервер для обходу сну хостингу Render
+# 1. Фоновий сервер Flask для Render
 app = Flask('')
 
 @app.route('/')
@@ -19,51 +19,43 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# 2. Ініціалізація бота (ВСТАВТЕ СВІЙ ТОКЕН НИЖЧЕ)
+# 2. Ініціалізація бота (ВСТАВТЕ СВІЙ ТОКЕН ТУТ)
 BOT_TOKEN = "8600085658:AAFxYgvTDaQ9ZZzPogxJxaLB-PbEuYzk5PI" 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Папка для тимчасового збереження відео на сервері
-DOWNLOAD_DIR = "downloads"
-if not os.path.exists(DOWNLOAD_DIR):
-    os.makedirs(DOWNLOAD_DIR)
-
-# 3. Обробка стартової команди
+# 3. Стартова команда
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     bot.reply_to(
         message, 
         "Привіт! Надішли мені посилання на відео з TikTok в особисті повідомлення. "
-        "Я завантажу його без водяного знаку і додам кнопку, щоб ти міг зручно скинути його другу! 🚀"
+        "Я завантажу його без водяного знаку і додам кнопку для пересилання! 🚀"
     )
 
-# 4. Основна логіка завантаження та надсилання відео користувачу
+# 4. Логіка завантаження та кнопки пересилання
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     url = message.text
 
-    # Перевірка на посилання з TikTok
     if "tiktok.com" not in url:
         bot.reply_to(message, "Будь ласка, надішли коректне посилання на TikTok.")
         return
 
     status_msg = bot.reply_to(message, "⏳ Завантажую відео без водяного знаку, зачекай трохи...")
 
-    # Налаштування yt-dlp для скачування чистого файлу mp4
-        ydl_opts = {
+    ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
-        'outtmpl': '%(id)s.%(ext)s',  # Змінили тут (прибрали DOWNLOAD_DIR)
+        'outtmpl': '%(id)s.%(ext)s',
         'quiet': True,
     }
 
-
     try:
-        # Завантажуємо відео на диск сервера
+        # Завантажуємо відео безпосередньо у корінь сервера
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        # Створюємо інлайн-кнопку для надійного пересилання у будь-який чат
+        # Створюємо кнопку "Поділитися"
         markup = types.InlineKeyboardMarkup()
         share_button = types.InlineKeyboardButton(
             text="Поділитися з другом ↩️",
@@ -75,7 +67,7 @@ def handle_message(message):
         )
         markup.add(share_button)
 
-        # Відправляємо завантажене відео користувачу разом із кнопкою
+        # Надсилаємо файл користувачу
         with open(filename, 'rb') as video:
             bot.send_video(
                 message.chat.id, 
@@ -84,20 +76,19 @@ def handle_message(message):
                 reply_to_message_id=message.message_id
             )
 
-        # Видаляємо тимчасовий файл з хостингу, щоб не забивати пам'ять
+        # Чистимо за собою диск
         os.remove(filename)
         bot.delete_message(message.chat.id, status_msg.message_id)
 
     except Exception as e:
         bot.edit_message_text(
-            "❌ Не вдалося завантажити відео. Можливо, воно приватне, видалене або TikTok змінив алгоритми захисту.", 
+            "❌ Не вдалося завантажити відео. Спробуйте інше посилання.", 
             message.chat.id, 
             status_msg.message_id
         )
         print(f"Помилка завантаження: {e}")
 
-# 5. Запуск усього процесу
 if __name__ == '__main__':
-    print("Бот успішно запускається на сервері...")
-    keep_alive()  # Запускаємо Flask у фоновому потоці
-    bot.infinity_polling()  # Запускаємо постійне опитування Telegram
+    print("Бот успішно запускається...")
+    keep_alive()
+    bot.infinity_polling()
